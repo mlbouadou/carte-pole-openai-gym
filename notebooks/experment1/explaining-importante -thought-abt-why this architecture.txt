@@ -1,0 +1,53 @@
+As a beginner in reinforcement learning, I focused on two activation functions for my first CartPole experiment: ReLU and tanh. I chose tanh because I wanted the network architecture to reflect a symmetry I noticed in the problem.
+
+The state contains four variables:
+
+s = [cart position, cart velocity, pole angle, pole angular velocity]
+
+If we mirror the entire state from right to left, all four signs reverse:
+
+-s = [-cart position, -cart velocity, -pole angle, -pole angular velocity]
+
+Under CartPole’s symmetric dynamics and reward, a suitable action for one state corresponds to the opposite action for its mirrored state. This means reversing the entire state should swap the policy’s preference for left and right.
+
+Unlike ReLU, tanh is an odd function:
+
+tanh(-z) = -tanh(z)
+
+I used this property by choosing tanh and removing biases from both the hidden and output layers. For this architecture:
+
+h(s) = tanh(Ws)
+z(s) = Vh(s)
+
+Therefore:
+
+h(-s) = -h(s)
+z(-s) = -z(s)
+
+With two output logits, negating both logits swaps their softmax probabilities. The network therefore respects the desired left-right symmetry for any values of its weights.
+
+Removing biases is a simple way to guarantee this property in my architecture. It is not the only possible way to build a symmetric network, and ReLU networks can also represent symmetry with a different design. My choice makes the relationship explicit rather than requiring training to discover it.
+
+I also considered the trade-off introduced by tanh: it compresses its outputs into the interval between -1 and 1. Large positive or negative inputs can saturate the function, reducing sensitivity to differences and making gradients small.
+
+My initial intuition was that the state values encountered in ordinary CartPole trajectories would often be moderate, making this trade-off acceptable for a first experiment. However, tanh acts on weighted sums, not directly on the raw state values. Small state values do not guarantee small weighted sums, so this remains something to evaluate rather than assume away.
+
+I wanted to encode the symmetry while leaving the detailed control strategy to learning.
+
+For example, a pole leaning right and rotating farther right may need a different response from a pole leaning right but already rotating back toward the left. The appropriate action also depends on the cart’s position and velocity. I therefore avoided imposing a rule such as “a rightward lean always requires a rightward push.”
+
+These interacting variables are precisely where learning the weights can be useful. My role is to provide relevant inputs, an appropriate architecture and a suitable training objective. The network then learns how to combine those inputs to choose actions.
+
+To account for consequences that appear later, I used REINFORCE with reward-to-go. Each selected action is weighted by the rewards collected from its step until the end of the episode. This allows later outcomes to influence the training of earlier decisions.
+
+Reward-to-go does not tell the network exactly which decision caused success or failure. It provides a learning signal across trajectories, through which the network can learn to avoid decisions that tend to lead to poor future outcomes.
+
+I chose gamma = 1, so future rewards are not discounted. With CartPole’s default reward of one per step, this makes the objective the expected number of steps completed before failure or the episode’s time limit.
+
+The task rewards keeping the system within its allowed position and angle limits for as long as possible; it does not require the pole to remain perfectly vertical at every instant. An undiscounted return directly matches this finite-episode objective.
+
+A smaller gamma would still reward longer survival, but it would give less weight to distant rewards. I chose gamma = 1 because I wanted every rewarded step in the episode to count equally.
+
+My first architecture therefore uses four inputs, one hidden layer with 16 tanh neurons, two output logits and no biases. The hidden-layer size is a starting hypothesis, not a proven optimum.
+
+The overall idea is to build known structure into the model, let learning discover the remaining control relationships, and evaluate both the benefits and limitations of those design choices.
